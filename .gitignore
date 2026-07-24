@@ -1,0 +1,9 @@
+# Игнор системных и временных файлов
+.cursor/
+.cache/
+.ssh/
+.venv/
+__pycache__/
+*.log
+*.tmp
+.DS_Store
