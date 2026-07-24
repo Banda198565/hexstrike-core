@@ -25,33 +25,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: hexstrike-detector
-    command: >
-      python3 -c "
-      from scripts.gsm.eip712_detector import PermitAnalyzer;
-      import sys, json;
-      # HTTP server mode — для интеграций
-      from http.server import HTTPServer, BaseHTTPRequestHandler;
-      analyzer = PermitAnalyzer();
-      class Handler(BaseHTTPRequestHandler):
-        def do_POST(self):
-          body = self.rfile.read(int(self.headers.get('Content-Length',0)));
-          try:
-            payload = json.loads(body);
-            result = analyzer.analyze(payload);
-            self.send_response(200);
-            self.end_headers();
-            self.wfile.write(json.dumps({
-              'safe': result.safe,
-              'score': result.score,
-              'findings': [{'risk': f.risk.value, 'param': f.param, 'message': f.message}
-                          for f in result.findings]
-            }).encode());
-          except Exception as e:
-            self.send_response(400);
-            self.end_headers();
-            self.wfile.write(json.dumps({'error': str(e)}).encode());
-      HTTPServer(('0.0.0.0', 8887), Handler).serve_forever()
-      "
+    command: python3 scripts/gsm/detector_api.py 8887
     ports:
       - "8887:8887"
     volumes:
