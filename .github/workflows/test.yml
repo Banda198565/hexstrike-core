@@ -1,0 +1,44 @@
+name: 🧪 Test EIP-712 Detector
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install eth-account web3 websockets
+
+      - name: Run phishing signature generator tests
+        run: |
+          python3 scripts/gsm/phishing_sig_generator.py --generate
+
+      - name: Run unit tests
+        run: |
+          python3 -m unittest tests/test_eip712_analyzer.py -v
+
+      - name: Run permit simulation
+        run: |
+          python3 scripts/gsm/permit_sim.py
+
+      - name: Run EIP-712 detector demo
+        run: |
+          python3 scripts/gsm/eip712_detector.py --simulate
+
+      - name: Run mempool watcher demo
+        run: |
+          python3 scripts/gsm/mempool_permit_watcher.py --demo
