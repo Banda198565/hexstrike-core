@@ -1,0 +1,82 @@
+version: "3.9"
+
+services:
+  # ─── mempool watcher ──────────────────────────────────
+  watcher:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hexstrike-watcher
+    command: >
+      python3 scripts/gsm/mempool_permit_watcher.py
+      --rpc ${WS_RPC_URL:?WS_RPC_URL не задан}
+      --sound
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/artifacts/gsm
+      - ./config:/app/config:ro
+    restart: unless-stopped
+    network_mode: host  # для WebSocket
+
+  # ─── EIP-712 detector (API) ───────────────────────────
+  detector:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hexstrike-detector
+    command: >
+      python3 -c "
+      from scripts.gsm.eip712_detector import PermitAnalyzer;
+      import sys, json;
+      # HTTP server mode — для интеграций
+      from http.server import HTTPServer, BaseHTTPRequestHandler;
+      analyzer = PermitAnalyzer();
+      class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+          body = self.rfile.read(int(self.headers.get('Content-Length',0)));
+          try:
+            payload = json.loads(body);
+            result = analyzer.analyze(payload);
+            self.send_response(200);
+            self.end_headers();
+            self.wfile.write(json.dumps({
+              'safe': result.safe,
+              'score': result.score,
+              'findings': [{'risk': f.risk.value, 'param': f.param, 'message': f.message}
+                          for f in result.findings]
+            }).encode());
+          except Exception as e:
+            self.send_response(400);
+            self.end_headers();
+            self.wfile.write(json.dumps({'error': str(e)}).encode());
+      HTTPServer(('0.0.0.0', 8887), Handler).serve_forever()
+      "
+    ports:
+      - "8887:8887"
+    volumes:
+      - .:/app
+    restart: unless-stopped
+
+  # ─── SIM800C GSM guard ────────────────────────────────
+  sms_guard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hexstrike-sms
+    command: >
+      python3 scripts/gsm/crypto_sms_guard.py
+      --port ${SIM800C_PORT:-/dev/ttyUSB0}
+      --baud ${SIM800C_BAUD:-115200}
+      --sound
+    env_file:
+      - .env
+    devices:
+      - "${SIM800C_PORT:-/dev/ttyUSB0}:/dev/ttyUSB0"
+    volumes:
+      - ./logs:/app/artifacts/gsm
+    restart: unless-stopped
+    privileged: true  # для доступа к USB/UART
+
+volumes:
+  logs:

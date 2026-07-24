@@ -1,0 +1,4 @@
+eth-account>=0.13
+web3>=7.0
+websockets>=13
+pyserial>=3.5
